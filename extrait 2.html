@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OSINT Finder - Retrouver un pseudo ou un mail</title>
+<style>
+  :root{
+    --bg:#0b0f17;
+    --card:#131a26;
+    --border:#1f2b3d;
+    --accent:#3b82f6;
+    --accent2:#22d3ee;
+    --text:#e6edf7;
+    --muted:#8b9bb4;
+    --ok:#22c55e;
+    --no:#ef4444;
+    --warn:#f59e0b;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{
+    font-family:'Segoe UI',system-ui,-apple-system,sans-serif;
+    background:radial-gradient(circle at 20% 0%,#12233b 0%,var(--bg) 45%);
+    color:var(--text);min-height:100vh;padding:0 16px;
+  }
+  header{text-align:center;padding:48px 0 24px}
+  h1{font-size:2.4rem;background:linear-gradient(90deg,var(--accent),var(--accent2));
+     -webkit-background-clip:text;background-clip:text;color:transparent;letter-spacing:-1px}
+  header p{color:var(--muted);margin-top:10px}
+  .search-box{max-width:760px;margin:24px auto;background:var(--card);
+     border:1px solid var(--border);border-radius:16px;padding:22px;box-shadow:0 10px 40px rgba(0,0,0,.4)}
+  .tabs{display:flex;gap:8px;margin-bottom:14px}
+  .tab{flex:1;padding:10px;border-radius:10px;border:1px solid var(--border);
+     background:transparent;color:var(--muted);cursor:pointer;font-weight:600;transition:.2s}
+  .tab.active{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;border-color:transparent}
+  .input-row{display:flex;gap:10px}
+  input[type=text]{flex:1;padding:14px 16px;border-radius:10px;border:1px solid var(--border);
+     background:#0d131d;color:var(--text);font-size:1rem;outline:none;transition:.2s}
+  input[type=text]:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(59,130,246,.2)}
+  button.search-btn{padding:14px 26px;border:none;border-radius:10px;cursor:pointer;font-weight:700;
+     background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;transition:.2s;font-size:1rem}
+  button.search-btn:hover{transform:translateY(-2px);box-shadow:0 8px 20px rgba(34,211,238,.3)}
+  button.search-btn:disabled{opacity:.6;cursor:wait;transform:none}
+  .hint{font-size:.8rem;color:var(--muted);margin-top:10px}
+  .examples{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+  .example{padding:5px 12px;border-radius:20px;border:1px solid var(--border);
+     background:#0d131d;color:var(--muted);font-size:.8rem;cursor:pointer;transition:.2s}
+  .example:hover{border-color:var(--accent);color:var(--text)}
+  #results{max-width:760px;margin:20px auto 60px}
+  .summary{background:var(--card);border:1px solid var(--border);border-radius:14px;
+     padding:18px;margin-bottom:16px;display:flex;justify-content:space-between;
+     align-items:center;flex-wrap:wrap;gap:12px}
+  .summary .big{font-size:1.5rem;font-weight:800}
+  .summary .lbl{color:var(--muted);font-size:.85rem}
+  .progress{height:10px;background:#0d131d;border-radius:6px;overflow:hidden;margin-top:8px;min-width:200px;flex:1}
+  .progress > div{height:100%;width:0;background:linear-gradient(90deg,var(--accent),var(--accent2));transition:width .4s}
+  .site-card{background:var(--card);border:1px solid var(--border);border-radius:12px;
+     padding:14px 16px;margin-bottom:10px;display:flex;align-items:center;gap:14px;animation:fade .3s ease both}
+  @keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+  .site-card .icon{width:38px;height:38px;border-radius:9px;display:grid;place-items:center;
+     font-weight:800;font-size:1rem;flex-shrink:0}
+  .site-card .info{flex:1;min-width:0}
+  .site-card .name{font-weight:700}
+  .site-card .url{color:var(--muted);font-size:.8rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .badge{padding:4px 10px;border-radius:20px;font-size:.72rem;font-weight:800;letter-spacing:.5px;flex-shrink:0}
+  .badge.found{background:rgba(34,197,94,.15);color:var(--ok);border:1px solid rgba(34,197,94,.4)}
+  .badge.notfound{background:rgba(239,68,68,.12);color:var(--no);border:1px solid rgba(239,68,68,.35)}
+  .site-card a.link{color:var(--accent2);font-size:.8rem;text-decoration:none;flex-shrink:0}
+  .site-card a.link:hover{text-decoration:underline}
+  .empty{text-align:center;color:var(--muted);padding:30px}
+  .spinner{width:20px;height:20px;border:3px solid rgba(255,255,255,.3);border-top-color:#fff;
+     border-radius:50%;animation:spin .7s linear infinite;display:inline-block;vertical-align:-4px}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  footer{text-align:center;color:var(--muted);font-size:.8rem;padding:30px 0}
+  .legend{display:flex;gap:16px;justify-content:center;margin:16px 0;font-size:.8rem;color:var(--muted);flex-wrap:wrap}
+  .dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:5px;vertical-align:0}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>🔍 OSINT Finder</h1>
+  <p>Retrouve la présence d'un pseudo ou d'un email sur le web</p>
+</header>
+
+<div class="search-box">
+  <div class="tabs">
+    <button class="tab active" data-mode="pseudo">👤 Pseudo</button>
+    <button class="tab" data-mode="email">📧 Email</button>
+  </div>
+  <div class="input-row">
+    <input type="text" id="query" placeholder="Entre un pseudo..." autocomplete="off" spellcheck="false">
+    <button class="search-btn" id="go">Rechercher</button>
+  </div>
+  <p class="hint" id="hint">Astuce : commence par un pseudo simple, sans @.</p>
+  <div class="examples" id="examples"></div>
+</div>
+
+<div id="results"></div>
+
+<footer>
+  Démo côté client — les résultats sont simulés. Branche une vraie API pour du réel.
+</footer>
+
+<script>
+/* ================= CONFIG ================= */
+// Liste de sites "testés". En vrai, ce seraient des API réelles.
+const SITES = [
+  { name:"GitHub",      domain:"github.com",        color:"#333"     },
+  { name:"Twitter / X", domain:"x.com",             color:"#1d9bf0"  },
+  { name:"Instagram",   domain:"instagram.com",     color:"#e1306c"  },
+  { name:"Reddit",      domain:"reddit.com",        color:"#ff4500"  },
+  { name:"TikTok",      domain:"tiktok.com",        color:"#000"     },
+  { name:"YouTube",     domain:"youtube.com",       color:"#ff0000"  },
+  { name:"Twitch",      domain:"twitch.tv",         color:"#9146ff"  },
+  { name:"Steam",       domain:"steamcommunity.com",color:"#171a21"  },
+  { name:"Discord",     domain:"discord.com",       color:"#5865f2"  },
+  { name:"Pinterest",   domain:"pinterest.com",     color:"#e60023"  },
+  { name:"Snapchat",    domain:"snapchat.com",      color:"#fffc00"  },
+  { name:"LinkedIn",    domain:"linkedin.com",      color:"#0a66c2"  },
+  { name:"Dev.to",      domain:"dev.to",            color:"#0a0a0a"  },
+  { name:"Medium",      domain:"medium.com",        color:"#000"     },
+  { name:"Spotify",     domain:"spotify.com",       color:"#1db954"  },
+  { name:"SoundCloud",  domain:"soundcloud.com",    color:"#ff5500"  },
+  { name:"Flickr",      domain:"flickr.com",        color:"#0063dc"  },
+  { name:"Vimeo",       domain:"vimeo.com",         color:"#1ab7ea"  },
+  { name:"Behance",     domain:"behance.net",       color:"#1769ff"  },
+  { name:"Dribbble",    domain:"dribbble.com",      color:"#ea4c89"  },
+  { name:"Patreon",     domain:"patreon.com",       color:"#f96854"  },
+  { name:"Last.fm",     domain:"last.fm",           color:"#d51007"  },
+  { name:"Tumblr",      domain:"tumblr.com",        color:"#36465d"  },
+  { name:"VK",          domain:"vk.com",            color:"#0077ff"  },
+  { name:"Goodreads",   domain:"goodreads.com",     color:"#372213"  },
+];
+
+/* ================= ETAT ================= */
+let mode = "pseudo";
+const $q = document.getElementById('query');
+const $go = document.getElementById('go');
+const $results = document.getElementById('results');
+const $hint = document.getElementById('hint');
+const $examples = document.getElementById('examples');
+
+/* ================= TABS ================= */
+document.querySelectorAll('.tab').forEach(tab=>{
+  tab.addEventListener('click',()=>{
+    document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+    tab.classList.add('active');
+    mode = tab.dataset.mode;
+    if(mode === "email"){
+      $q.placeholder = "Entre un email...";
+      $q.type = "text";
+      $hint.textContent = "Astuce : tape une adresse email complète (ex: jean.dupont@mail.com).";
+      renderExamples(["jean.dupont@gmail.com","contact@studio.dev","alex@proton.me"]);
+    } else {
+      $q.placeholder = "Entre un pseudo...";
+      $hint.textContent = "Astuce : commence par un pseudo simple, sans @.";
+      renderExamples(["dark_sasuke","pixel_master","lucaducul"]);
+    }
+  });
+});
+
+function renderExamples(list){
+  $examples.innerHTML = "";
+  list.forEach(ex=>{
+    const b = document.createElement('button');
+    b.className = 'example';
+    b.textContent = ex;
+    b.onclick = ()=>{ $q.value = ex; $q.focus(); };
+    $examples.appendChild(b);
+  });
+}
+renderExamples(["dark_sasuke","pixel_master","lucaducul"]);
+
+/* ================= RECHERCHE ================= */
+$go.addEventListener('click', run);
+$q.addEventListener('keydown', e=>{ if(e.key==='Enter') run(); });
+
+/* Générateur pseudo-aléatoire déterministe (hash du pseudo + site) */
+function hash(str){
+  let h = 2166136261;
+  for(let i=0;i<str.length;i++){ h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); }
+  return (h >>> 0);
+}
+
+function exists(query, site){
+  // probabilité d'existence ~ 40%, déterministe
+  return (hash(query + "|" + site.domain) % 100) < 40;
+}
+
+async function run(){
+  const q = $q.value.trim();
+  if(!q){ $q.focus(); return; }
+
+  $go.disabled = true;
+  $go.innerHTML = '<span class="spinner"></span>';
+  $results.innerHTML = "";
+
+  // shuffle la liste pour effet "scan progressif"
+  const order = [...SITES].sort(()=>Math.random()-0.5);
+
+  const progressWrap = document.createElement('div');
+  progressWrap.className = 'summary';
+  progressWrap.innerHTML = `
+    <div>
+      <div class="lbl">Recherche (${mode === 'email' ? 'email' : 'pseudo'})</div>
+      <div class="big" id="bigCount">0 trouvé(s)</div>
+      <div class="progress"><div id="bar"></div></div>
+    </div>
+    <div style="text-align:right">
+      <div class="lbl">Scan en cours…</div>
+      <div id="scanState" style="font-size:1.2rem;font-weight:700"></div>
+    </div>
+  `;
+  $results.appendChild(progressWrap);
+
+  const list = document.createElement('div');
+  $results.appendChild(list);
+
+  let found = 0, done = 0;
+  const total = order.length;
+
+  for(const site of order){
+    await new Promise(r=>setTimeout(r, 90 + Math.random()*140));
+    done++;
+
+    const ok = exists(q, site);
+    if(ok) found++;
+
+    const card = document.createElement('div');
+    card.className = 'site-card';
+    const suggested = ok ? (
+      mode === 'email'
+        ? `${site.domain}/profil`
+        : `${site.domain}/${q.replace(/\s+/g,'').toLowerCase()}`
+    ) : site.domain;
+
+    card.innerHTML = `
+      <div class="icon" style="background:${site.color};color:#fff">${site.name[0]}</div>
+      <div class="info">
+        <div class="name">${site.name}</div>
+        <div class="url">${suggested}</div>
+      </div>
+      ${ok
+        ? `<span class="badge found">TROUVÉ</span><a class="link" target="_blank" rel="noopener" href="https://${site.domain}">Visiter ↗</a>`
+        : `<span class="badge notfound">AUCUN</span>`}
+    `;
+    list.appendChild(card);
+
+    // maj progression
+    const bar = document.getElementById('bar');
+    if(bar) bar.style.width = Math.round((done/total)*100) + "%";
+    const bc = document.getElementById('bigCount');
+    if(bc) bc.textContent = found + " trouvé(s)";
+    const ss = document.getElementById('scanState');
+    if(ss) ss.textContent = done + "/" + total;
+  }
+
+  // fin
+  const ss = document.getElementById('scanState');
+  if(ss) ss.textContent = "✓ Terminé";
+  $go.disabled = false;
+  $go.textContent = "Rechercher";
+
+  if(found === 0){
+    const empty = document.createElement('div');
+    empty.className = 'empty';
+    empty.textContent = "Aucun profil trouvé pour « " + q + " ». Essaie une autre variante.";
+    list.prepend(empty);
+  }
+}
+</script>
+</body>
+</html>
